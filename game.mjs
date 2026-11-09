@@ -35,12 +35,18 @@ function caption(text,duration=1.4){byId('toast').textContent=text;captionUntil=
 function menu(){
  byId('progress').textContent='MISSION '+(level+1)+' / '+stages.length+' · SECRETS '+saved.eggs.filter(Boolean).length+' / '+stages.length;
 }
+const sceneLines=[
+ ['QUACK CAPTAIN: WATCH THIS.','THE SOAP HAS OTHER PLANS.','SPLASH! TO THE RESCUE!'],
+ ['ONE LAST SPIN CYCLE.','WAIT… THAT SOCK QUACKED.','DUCKS OVERBOARD!'],
+ ['THE CAPTAIN FOUND THE BEAT.','THAT WAS THE WRONG LEVER.','RESCUE ON THE DANCE FLOOR!']
+];
+let lastBeat=-1;
 function begin(){
  if(!world)return;
  if(phase==='result')level=(level+1)%stages.length;
- run=create(level);aim=0;dock=stages[level].target;phase='intro';sceneTime=0;
+ run=create(level);aim=0;dock=stages[level].target;phase='intro';sceneTime=0;lastBeat=-1;
  byId('panel').hidden=true;byId('hud').hidden=true;byId('skip').hidden=false;
- caption(stages[level].intro,3);music.mode='chute';music.start();
+ caption(sceneLines[level][0],2.2);music.mode='chute';music.start();
 }
 function play(){
  if(phase!=='intro')return;
@@ -93,7 +99,11 @@ function frame(now){
  const dt=Math.min(.045,(now-last)/1000);last=now;
  if(document.hidden){requestAnimationFrame(frame);return}
  sceneTime+=dt;
- if(phase==='intro'&&sceneTime>=3)play();
+ if(phase==='intro'){
+  const beat=sceneTime<2.2?0:sceneTime<3.5?1:2;
+  if(beat!==lastBeat){lastBeat=beat;caption(sceneLines[level][beat],2.4);if(beat)music.hit(beat)}
+  if(sceneTime>=5.6)play();
+ }
  if(phase==='ending'&&sceneTime>=2.75)result();
  const spray=phase==='play'&&(pointer!==null||keySpray);
  if(phase==='play'){

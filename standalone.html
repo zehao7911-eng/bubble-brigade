@@ -116,6 +116,25 @@ class Pool{
    this.box(.53,.54,.07,[0xff48a6,0x34e8ff,0xffde36][i%3],(i%6-2.5)*1.07,1.5+Math.floor(i/6)*.70,-2.74,this.party);
   }
   this.secretDuck=this.duck(3);
+  this.ramp=this.box(2.45,.18,1.25,0xff923a,0,0,0);
+  this.drum=this.group();
+  const drumBody=new T.Mesh(new T.CylinderGeometry(.94,.94,.34,24),this.materials.get(0x7440ff));
+  drumBody.rotation.x=Math.PI/2;this.drum.add(drumBody);
+  for(let i=0;i<6;i++){
+   const angle=i*Math.PI/3;
+   this.box(.12,.66,.11,0xffd33e,Math.sin(angle)*.48,Math.cos(angle)*.48,.22,this.drum).rotation.z=-angle;
+  }
+  this.alarm=this.group();
+  this.box(.48,.14,.48,0x15376b,0,0,0,this.alarm);
+  this.ball(.19,.23,.19,0xff413c,0,.19,0,this.alarm);
+  this.alarmLamp=new T.PointLight(0xff413c,0,6);this.alarm.add(this.alarmLamp);
+  this.alarm.position.set(3.4,7,0);
+  this.lever=this.group();
+  this.box(.47,.45,.42,0x413b8f,0,-.22,0,this.lever);
+  this.leverHandle=this.group(this.lever);
+  this.box(.10,.61,.12,0x6472cb,0,.30,0,this.leverHandle);
+  this.ball(.19,.16,.15,0xff426e,0,.64,0,this.leverHandle);
+  this.splash=Array.from({length:18},()=>this.ball(.10,.10,.10,0xc5ffff,0,0,0));
   this.flashAge=2;
   const resize=()=>{
    const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
@@ -163,26 +182,74 @@ class Pool{
    mesh.scale.setScalar(d.safe?.59:1);
   });
   const opening=phase==='intro',closing=phase==='ending'||phase==='result';
+  const perfect=closing&&run.drops===0;
+  const t=sceneTime;
+  const ease=value=>{const f=Math.min(1,Math.max(0,value));return f*f*(3-2*f)};
+  const spill=ease((t-2.2)/1.25),reveal=ease((t-4.0)/1.35);
+  this.ramp.visible=opening&&run.stage===0;
+  this.ramp.position.set(-1.65,4.68,.8);
+  this.ramp.rotation.z=-.22;
+  this.drum.visible=opening&&run.stage===1;
+  this.drum.position.set(-1.3,4.9,.30);
+  this.drum.rotation.z=-t*(1+t*.3);
+  this.lever.visible=opening&&run.stage===2;
+  this.lever.position.set(-1.01,4.59,.8);
+  this.leverHandle.rotation.z=-1.08*ease((t-2.05)/.38);
+  this.splash.forEach((drop,i)=>{
+   const age=(t-3.45)/.72, angle=i*2.4;
+   drop.visible=opening&&age>=0&&age<=1;
+   if(drop.visible)drop.position.set(this.captain.position.x+Math.cos(angle)*age*1.45,1.0+Math.sin(age*Math.PI)*(.55+i%3*.18),.6+Math.sin(angle)*age);
+  });
+  this.alarm.visible=opening;
+  this.alarmLamp.intensity=opening&&t>3.4?Math.max(0,Math.sin(t*18))*3:0;
   this.captain.visible=opening||closing;
   if(opening){
-   const fall=Math.max(0,Math.min(1,(sceneTime-.85)/1.1));
-   this.captain.position.set(-2.75+fall*.84,4.5-fall*3.3,1);
-   this.captain.rotation.z=fall*Math.PI*2;
+   const launch=ease((t-.8)/1.8);
+   if(run.stage===0){
+    this.captain.position.set(-2.65+2.25*launch+1.48*spill,5.19-.50*launch-3.56*spill,1);
+    this.captain.rotation.z=-.20*launch-2*Math.PI*spill;
+   }else if(run.stage===1){
+    this.captain.position.set(-1.3+2.1*spill,4.9+.38*Math.sin(t*6)*(1-spill)-3.65*spill,.8);
+    this.captain.rotation.z=-t*2*(1-spill)-Math.PI*2*spill;
+   }else{
+    this.captain.position.set(-2.6+2.2*launch,4.72+.47*Math.abs(Math.sin(t*7))-3.52*spill,1);
+    this.captain.rotation.z=Math.sin(t*7)*.35*(1-spill);
+   }
+   this.ducks.forEach((duck,i)=>{
+    if(!run.ducks[i])return;
+    const land=ease((t-2.65-i*.13)/1.35);
+    duck.visible=t>2.65+i*.13;
+    duck.position.y+=4.4*(1-land)+.7*Math.sin(land*Math.PI);
+    duck.rotation.z=(1-land)*(i%2?1:-1)*2.7;
+   });
   }else if(closing){
-   this.captain.position.set(dock,6.55+Math.abs(Math.sin(time*7))*.26,.5);
-   this.captain.rotation.z=Math.sin(time*7)*.22;
+   const dance=perfect&&run.stage===2;
+   this.captain.position.set(dock+(dance?Math.sin(t*6)*.78:0),6.55+Math.abs(Math.sin(time*7))*(dance?.65:.19),.5);
+   this.captain.rotation.z=Math.sin(time*(dance?12:7))*(dance?.65:.16);
+   if(perfect&&run.stage===0&&t>1.2)this.captain.rotation.z=-Math.PI*2*ease((t-1.2)/.95);
   }
-  this.soap.visible=opening&&run.stage===0;
-  this.soap.position.set(-2.8+sceneTime*.6,4.08-Math.max(0,sceneTime-.8)*1.45,1.2);
-  this.sock.visible=(opening||closing&&(run.drops>0||sceneTime<.9))&&run.stage===1;
-  this.sock.position.set(closing?dock+1.15:2.3-sceneTime*.4,closing?5.8:6.2-sceneTime,1.2);
-  this.sock.rotation.z=time*2;
-  this.secretDuck.visible=closing&&run.stage===1&&!run.drops&&sceneTime>=.9;
+  this.soap.visible=opening&&run.stage===0||perfect&&run.stage===0;
+  this.soap.position.set(opening?-1.95+1.7*ease((t-.8)/1.7)+1.3*spill:dock,opening?4.94-.43*ease((t-.8)/1.7)-3.5*spill:6.14,.95);
+  this.soap.rotation.z=opening?-.2:0;
+  this.sock.visible=(opening||closing&&(run.drops>0||t<1.15))&&run.stage===1;
+  this.sock.position.set(opening?-1.3+3*spill:dock+1.15,opening?5.5-4.3*spill:5.8,1.2);
+  this.sock.rotation.z=opening?t*4:t*2;
+  this.secretDuck.visible=perfect&&run.stage===1&&t>=1.15;
   this.secretDuck.position.set(dock+1.4,5.85+Math.abs(Math.sin(time*8))*.40,.9);
   this.secretDuck.rotation.z=Math.sin(time*8)*.32;
   this.disco.visible=run.stage===2;
-  this.disco.position.set(-2.6,7.25,0);
-  this.disco.rotation.y=time*2;
+  this.disco.position.set(-2.6+spill*1.6*(opening?1:0),7.25-(opening?1.8*spill:0),0);
+  this.disco.rotation.y=time*(perfect?6:2);
+  if(opening){
+   const focus=t<2.2?this.captain.position.x*.8:(1-reveal)*this.captain.position.x*.45;
+   this.camera.position.set(focus,8.2+(1-reveal)*1.1,18);
+   this.camera.lookAt(focus,4.2+(1-reveal)*1.1,0);
+   this.camera.zoom=1+.48*(1-reveal);
+  }else{
+   this.camera.position.set(0,8.2,18);
+   this.camera.lookAt(0,4.2,0);
+   this.camera.zoom=phase==='ending'?1+.14*ease(t/.5):1;
+  }
   this.bubbles.forEach((mesh,i)=>{
    const age=(time*1.25+i/this.bubbles.length)%1;
    mesh.visible=spray;
@@ -197,11 +264,11 @@ class Pool{
    if(mesh.visible)mesh.position.set(dock+Math.sin(i*2.4)*a*2,5.65+a*1.6,Math.cos(i*2.4)*a*1.65);
    mesh.rotation.set(time+i,time*2,0);
   });
-  this.camera.zoom+=( (opening?1.12:closing?1.04:1)-this.camera.zoom)*Math.min(1,dt*5);
   this.camera.updateProjectionMatrix();
   this.renderer.render(this.scene,this.camera);
  }
 }
+
 
 
 class Music{
@@ -306,12 +373,18 @@ function caption(text,duration=1.4){byId('toast').textContent=text;captionUntil=
 function menu(){
  byId('progress').textContent='MISSION '+(level+1)+' / '+stages.length+' · SECRETS '+saved.eggs.filter(Boolean).length+' / '+stages.length;
 }
+const sceneLines=[
+ ['QUACK CAPTAIN: WATCH THIS.','THE SOAP HAS OTHER PLANS.','SPLASH! TO THE RESCUE!'],
+ ['ONE LAST SPIN CYCLE.','WAIT… THAT SOCK QUACKED.','DUCKS OVERBOARD!'],
+ ['THE CAPTAIN FOUND THE BEAT.','THAT WAS THE WRONG LEVER.','RESCUE ON THE DANCE FLOOR!']
+];
+let lastBeat=-1;
 function begin(){
  if(!world)return;
  if(phase==='result')level=(level+1)%stages.length;
- run=create(level);aim=0;dock=stages[level].target;phase='intro';sceneTime=0;
+ run=create(level);aim=0;dock=stages[level].target;phase='intro';sceneTime=0;lastBeat=-1;
  byId('panel').hidden=true;byId('hud').hidden=true;byId('skip').hidden=false;
- caption(stages[level].intro,3);music.mode='chute';music.start();
+ caption(sceneLines[level][0],2.2);music.mode='chute';music.start();
 }
 function play(){
  if(phase!=='intro')return;
@@ -364,7 +437,11 @@ function frame(now){
  const dt=Math.min(.045,(now-last)/1000);last=now;
  if(document.hidden){requestAnimationFrame(frame);return}
  sceneTime+=dt;
- if(phase==='intro'&&sceneTime>=3)play();
+ if(phase==='intro'){
+  const beat=sceneTime<2.2?0:sceneTime<3.5?1:2;
+  if(beat!==lastBeat){lastBeat=beat;caption(sceneLines[level][beat],2.4);if(beat)music.hit(beat)}
+  if(sceneTime>=5.6)play();
+ }
  if(phase==='ending'&&sceneTime>=2.75)result();
  const spray=phase==='play'&&(pointer!==null||keySpray);
  if(phase==='play'){
